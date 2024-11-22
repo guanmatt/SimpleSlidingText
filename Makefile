@@ -5,3 +5,7 @@ main: main.cpp
 
 get_key: get_key.cpp
 	g++ -o get_key get_key.cpp -lncurses
+
+.PHONY: clean
+clean:
+	rm -rf main get_key

@@ -39,6 +39,8 @@ public:
 
     const char *getString(int index = 0)
     {
+        // TODO Calculate string splice to return. 
+        // TODO Add gap buffer
         // if(index < 0 || index >= size) {
         //     exit(-1);
         // }
@@ -129,6 +131,9 @@ int main()
             clear();
             deferClear = false;
         }
+        // TODO Improve centering text
+        // TODO If we are at left most or right most, that should be the center. Otherwise, we should display 5 + 5 characters on each side.
+        // TODO use a index pointer, left buffer, right buffer
         mvaddnstr(row - 1, col / 2, buf.getString(printIndex), buf.getSize());//std::min(buf.getSize() - printIndex);
     }
     printf("exiting");
