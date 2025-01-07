@@ -41,11 +41,12 @@ public:
         left++;
     }
 
-    void erase()
+    void erase(bool backwards = true)
     {
-        if (left > 0)
-        {
+        if (backwards && left > 0) {
             left--;
+        } else if (!backwards && right < capacity) {
+            right++;
         }
     }
 
@@ -158,8 +159,6 @@ int main()
     curs_set(2); // hide cursor
 
     int valid = true;
-    int printIndex = 0;
-    int printWindowSize = 10 + 1;
     int deferClear = false;
 
     print(&buf, row);
@@ -186,9 +185,10 @@ int main()
         }
         case KEY_BACKSPACE:
             buf.erase();
-            clear();
             break;
         case KEY_DC:
+            buf.erase(false);
+            break;
             // todo delete forward
         case KEY_ARROW_LEFT:
             if (buf.moveLeft())
