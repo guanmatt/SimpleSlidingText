@@ -2,16 +2,22 @@
 #include <string.h>
 #include <fstream>
 #include <algorithm>
+#include <string.h>
 
 #define KEY_CTRL_S 19
 #define KEY_ARROW_LEFT 260
 #define KEY_ARROW_RIGHT 261
+#define INITIAL_CAPACITY 8 // 256
 
+// left points to start of gap
+// right points to start of content on right of gap
 class Buffer
 {
 public:
-    Buffer(size_t initialCapacity = 256) : size(0), capacity(initialCapacity), buf(new char[initialCapacity])
+    Buffer(size_t initialCapacity = INITIAL_CAPACITY) : left(0), right(initialCapacity), capacity(initialCapacity)
     {
+        buf = new char[initialCapacity];
+        memset(buf, '-', initialCapacity);
     }
 
     ~Buffer()
@@ -19,55 +25,103 @@ public:
         delete[] buf;
     }
 
-    void append(char c)
+    void debug(int x, int y)
     {
-        if (size == capacity)
+        std::string s = "left:" + std::to_string(left) + ", right: " + std::to_string(right) + ", capacity: " + std::to_string(capacity);
+        mvaddnstr(x, y, s.c_str(), s.length());
+    }
+
+    void insert(char c)
+    {
+        if (left == right)
         {
             resize();
         }
-        buf[size] = c;
-        size++;
+        buf[left] = c;
+        left++;
     }
 
-    void backspace()
+    void erase()
     {
-        if (size > 0)
+        if (left > 0)
         {
-            size--;
+            left--;
         }
     }
 
-    const char *getString(int index = 0)
+    bool moveLeft()
     {
-        // TODO Calculate string splice to return. 
-        // TODO Add gap buffer
-        // if(index < 0 || index >= size) {
-        //     exit(-1);
-        // }
-        return buf + index;
+        if (left > 0)
+        {
+            left--;
+            right--;
+            buf[right] = buf[left];
+            return true;
+        }
+        return false;
     }
 
-    const int getSize()
+    bool moveRight()
     {
-        return size;
+        if (right < capacity)
+        {
+            buf[left] = buf[right];
+            left++;
+            right++;
+            return true;
+        }
+        return false;
+    }
+
+    std::string getRawStr()
+    {
+        std::string str(buf, capacity);
+        return str;
+    }
+
+    std::string getStr()
+    {
+        std::string str;
+        if (left > 0)
+        {
+            str.append(buf, left);
+        }
+        if (capacity - right > 0)
+        {
+            str.append(buf + right, capacity - right);
+        }
+        return str;
+    }
+
+    int getCursorPosition() {
+        return left;
     }
 
 private:
-    size_t size;
+    int left;
+    int right;
     size_t capacity;
     char *buf;
 
     void resize()
     {
-        capacity *= 2;
-        char *new_buf = new char[capacity];
-
-        for (size_t i = 0; i < size; i++)
+        size_t new_capacity = 2 * capacity;
+        char *new_buf = new char[new_capacity];
+        memset(new_buf, '-', new_capacity);
+        for (int i = 0; i < left; i++)
         {
             new_buf[i] = buf[i];
         }
+
+        for (int i = right; i < capacity; i++)
+        {
+            new_buf[i + capacity] = buf[i];
+        }
+
         delete[] buf;
         buf = new_buf;
+        right = right + capacity;
+        capacity = new_capacity;
     }
 };
 
@@ -78,27 +132,46 @@ void saveToFile(char fileName[], const char data[], int n)
     ofs.close();
 }
 
+void print(Buffer* buf, int row) {
+    buf->debug(row - 3, 0);
+    std::string rawStr = buf->getRawStr();
+    mvaddnstr(row - 2, 0, rawStr.c_str(), rawStr.size());
+
+    std::string str = buf->getStr();
+    mvaddnstr(row - 1, 0, str.c_str(), str.size());
+    move(row - 1, buf->getCursorPosition());
+}
+
 int main()
 {
     // INIT
     Buffer buf;
     int row, col;
+    int y, x;
     int ch;
     initscr();
     raw();                // same as cbreak, disables line buffering
     noecho();             // don't echo user input
     keypad(stdscr, TRUE); // allow fn keys
     getmaxyx(stdscr, row, col);
+    // attron(A_STANDOUT);
+    curs_set(2); // hide cursor
 
     int valid = true;
     int printIndex = 0;
     int printWindowSize = 10 + 1;
     int deferClear = false;
+
+    print(&buf, row);
     while (valid)
     {
         ch = getch();
         switch (ch)
         {
+        case KEY_UP:
+        case KEY_DOWN:
+            // fall through, ignore for now
+            break;
         case 26: // ctrl z
         case 3:  // ctrl c
             valid = false;
@@ -106,35 +179,46 @@ int main()
         case KEY_CTRL_S:
         {
             char fileName[] = "output.txt";
-            saveToFile(fileName, buf.getString(), buf.getSize());
+
+            std::string str = buf.getStr();
+            saveToFile(fileName, str.c_str(), str.size() - 1);
             break;
         }
         case KEY_BACKSPACE:
-            buf.backspace();
+            buf.erase();
             clear();
             break;
+        case KEY_DC:
+            // todo delete forward
         case KEY_ARROW_LEFT:
-            printIndex = printIndex == 0 ? 0 : printIndex - 1;
+            if (buf.moveLeft())
+            {
+                getyx(stdscr, y, x); /* get the current curser position */
+                x--;
+            }
             break;
         case KEY_ARROW_RIGHT:
-            printIndex = printIndex == buf.getSize() - 1 ? printIndex : printIndex + 1;
+            if (buf.moveRight())
+            {
+                getyx(stdscr, y, x); /* get the current curser position */
+                x++;
+            }
             break;
         case KEY_RESIZE:
             getmaxyx(stdscr, row, col);
             deferClear = true;
             continue;
         default:
-            buf.append(ch);
+            buf.insert(ch);
             break;
         }
-        if (deferClear) {
+        if (deferClear)
+        {
             clear();
             deferClear = false;
         }
-        // TODO Improve centering text
-        // TODO If we are at left most or right most, that should be the center. Otherwise, we should display 5 + 5 characters on each side.
-        // TODO use a index pointer, left buffer, right buffer
-        mvaddnstr(row - 1, col / 2, buf.getString(printIndex), buf.getSize());//std::min(buf.getSize() - printIndex);
+        erase();
+        print(&buf, row);
     }
     printf("exiting");
     endwin();

@@ -10,6 +10,6 @@ int main() {
     
     ch = getch();
 	endwin();
-    printf("KEY NAME : %s - %d\n", keyname(ch),ch);
+    printf("KEY NAME : #define %s %d\n", keyname(ch),ch);
 	return 0;
 }
